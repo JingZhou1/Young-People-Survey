@@ -1,0 +1,81 @@
+raw_data = read.csv('responses.csv', , header = TRUE)
+raw_data
+#cols = c(50:62,76,86,102,107,114,125,134:139)
+
+cols = c(1:73,76)
+target= c(75)
+survey = raw_data[,cols]
+survey$Target = raw_data[,target]
+
+# preprocessing 
+# remove rows with missing values
+complete.cases(survey)
+cleanedData <- survey[complete.cases(survey), ]
+cleanedData <- na.omit(survey)
+
+# remove outliers:(Multivariate) Outlier detection: Small number of
+cleanedData
+
+#select only the columns mentioned
+mydata = cleanedData
+head(mydata)
+dim(mydata)
+
+# Dimension Reduction 
+#Step 1:Correlation Matrix of Independent Variables 
+install.packages('corrplot')
+library(corrplot)
+corr.music <- cor(mydata[,1:73])
+corrplot(corr.music, method="color", tl.cex = 0.7)
+
+install.packages('nFactors')
+install.packages('psych')
+install.packages('GPArotation')
+library(nFactors)
+library(psych)
+library(GPArotation)
+
+
+#Step 2: Estimating # of Factors
+nScree(mydata[,1:73]) # estimate the number of factors from scree tests:5
+eigen(cor(mydata[,1:73])) #selection heuristics - eigenvalue 1
+#Step 3:Factor Analysis
+factanal(mydata[,1:73], factors=20) 
+factor_res=factanal(mydata[,1:73], factors=20, rotation="varimax",scores="Bartlett")
+factor_res
+colx = c(1:74)
+X=as.matrix(mydata[,colx])
+fX=as.data.frame(factor_res$scores)
+fX$lifestyle = mydata$Healthy.eating
+fX = as.matrix(fX)
+Y=as.matrix(mydata[,75])
+
+install.packages('MASS')
+library(MASS)
+
+logit = glm(Y~X, family = binomial("logit"))
+summary(logit)
+logit_f = glm(Y~fX, family=binomial("logit"))
+summary(logit_f)
+
+#taking only significant factors 
+sig = (c(1,2,3,4,6,13,16,17))
+fX_sig = as.data.frame(fX[,sig])
+fX_sig$lifestyle = mydata$Healthy.eating
+fX_sig = as.matrix(fX_sig)
+logit_sig = glm(Y~fX_sig, family=binomial("logit"))
+summary(logit_sig)
+
+#predicting
+pred=predict.glm(logit_sig, mydata,type="response")
+n = dim(mydata)[1]
+pred.c = rep(0,n)
+pred.c[pred>=0.5]="yes"
+pred.c[pred<0.5]="no"
+table(pred.c) #frequency table for predicted choice
+result = table(mydata[,75],pred.c)# apply CrossTabtable
+
+correct = result[1,1]+result[2,2]
+wrong = result[1,2]+result[2,1]
+accuracy = correct/(correct+wrong)
+accuracy
